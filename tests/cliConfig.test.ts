@@ -19,7 +19,7 @@ test('resolveCliConfigPath prefers CONSENSUS_CONFIG, then local .consensus/confi
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'consensus-tools-cli-'));
     const local = path.join(dir, '.consensus', 'config.json');
     await fs.mkdir(path.dirname(local), { recursive: true });
-    await fs.writeFile(local, '{"activeBoard":"remote","boards":{"local":{"type":"local","root":"~","jobsPath":"jobs","ledgerPath":"ledger.json"},"remote":{"type":"remote","url":"https://x","boardId":"b","auth":{"type":"apiKey","apiKeyEnv":"CONSENSUS_API_KEY"}}},"defaults":{"policy":"SINGLE_WINNER","reward":1,"stake":1,"leaseSeconds":60}}');
+    await fs.writeFile(local, '{"activeBoard":"remote","boards":{"local":{"type":"local","root":"~","jobsPath":"jobs","ledgerPath":"ledger.json"},"remote":{"type":"remote","url":"https://x","boardId":"b","auth":{"type":"apiKey","apiKeyEnv":"CONSENSUS_API_KEY"}}},"defaults":{"policy":"FIRST_SUBMISSION_WINS","reward":1,"stake":1,"leaseSeconds":60}}');
 
     delete process.env.CONSENSUS_CONFIG;
     assert.equal(resolveCliConfigPath(dir), local);

@@ -163,7 +163,7 @@ function helpText() {
     '  jobs list [--tag <tag>] [--status <status>] [--mine] [--json]',
     '  submissions create <jobId> --artifact <json> [--summary <text>] [--confidence <n>] [--json]',
     '  submissions list <jobId> [--json]',
-    '  votes cast <jobId> [--submission <id> | --choice <key>] [--weight <n>] [--json]',
+    '  votes cast <jobId> [--submission <id> | --choice <key>] [--yes|--no] [--weight <n>] [--stake <n>] [--json]',
     '  votes list <jobId> [--json]',
     '  resolve <jobId> [--winner <agentId> ...] [--submission <submissionId>] [--json]',
     '  result get <jobId> [--json]',

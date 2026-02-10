@@ -50,8 +50,9 @@ export const configSchema = {
                 type: {
                   type: 'string',
                   enum: [
-                    'SINGLE_WINNER',
+                    'FIRST_SUBMISSION_WINS',
                     'HIGHEST_CONFIDENCE_SINGLE',
+                    'APPROVAL_VOTE',
                     'OWNER_PICK',
                     'TOP_K_SPLIT',
                     'MAJORITY_VOTE',
@@ -59,7 +60,7 @@ export const configSchema = {
                     'WEIGHTED_REPUTATION',
                     'TRUSTED_ARBITER'
                   ],
-                  default: 'SINGLE_WINNER'
+                  default: 'FIRST_SUBMISSION_WINS'
                 },
                 trustedArbiterAgentId: { type: 'string', default: '' },
                 minConfidence: { type: 'number', default: 0, minimum: 0, maximum: 1 },
@@ -99,8 +100,9 @@ export const configSchema = {
               type: {
                 type: 'string',
                 enum: [
-                  'SINGLE_WINNER',
+                  'FIRST_SUBMISSION_WINS',
                   'HIGHEST_CONFIDENCE_SINGLE',
+                  'APPROVAL_VOTE',
                   'OWNER_PICK',
                   'TOP_K_SPLIT',
                   'MAJORITY_VOTE',
@@ -190,12 +192,13 @@ export const defaultConfig: ConsensusToolsConfig = {
       maxParticipants: 3,
       minParticipants: 1,
       expiresSeconds: 86400,
-      consensusPolicy: { type: 'SINGLE_WINNER', trustedArbiterAgentId: '' },
+      consensusPolicy: { type: 'FIRST_SUBMISSION_WINS', trustedArbiterAgentId: '', tieBreak: 'earliest' },
       slashingPolicy: { enabled: false, slashPercent: 0, slashFlat: 0 }
     },
     consensusPolicies: {
-      SINGLE_WINNER: { type: 'SINGLE_WINNER' },
+      FIRST_SUBMISSION_WINS: { type: 'FIRST_SUBMISSION_WINS' },
       HIGHEST_CONFIDENCE_SINGLE: { type: 'HIGHEST_CONFIDENCE_SINGLE', minConfidence: 0 },
+      APPROVAL_VOTE: { type: 'APPROVAL_VOTE', quorum: 1, minScore: 1, minMargin: 0, tieBreak: 'earliest', approvalVote: { weightMode: 'equal', settlement: 'immediate' } },
       OWNER_PICK: { type: 'OWNER_PICK' },
       TOP_K_SPLIT: { type: 'TOP_K_SPLIT', topK: 2, ordering: 'confidence' },
       MAJORITY_VOTE: { type: 'MAJORITY_VOTE' },

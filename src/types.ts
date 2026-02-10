@@ -1,6 +1,7 @@
 export type ConsensusPolicyType =
-  | 'SINGLE_WINNER'
+  | 'FIRST_SUBMISSION_WINS'
   | 'HIGHEST_CONFIDENCE_SINGLE'
+  | 'APPROVAL_VOTE'
   | 'OWNER_PICK'
   | 'TOP_K_SPLIT'
   | 'MAJORITY_VOTE'
@@ -24,10 +25,27 @@ export type VoteTargetType = 'SUBMISSION' | 'CHOICE';
 export interface ConsensusPolicyConfig {
   type: ConsensusPolicyType;
   trustedArbiterAgentId?: string;
+
+  // confidence-based policies
   minConfidence?: number;
+
+  // top-k policies
   topK?: number;
   ordering?: 'confidence' | 'score';
+
+  // vote-based policies
   quorum?: number;
+  minScore?: number;
+  minMargin?: number;
+  tieBreak?: 'earliest' | 'confidence' | 'arbiter';
+
+  // approval-vote specific
+  approvalVote?: {
+    weightMode?: 'equal' | 'explicit' | 'reputation';
+    settlement?: 'immediate' | 'staked' | 'oracle';
+    oracle?: 'trusted_arbiter';
+    voteSlashPercent?: number; // 0-1 (only for settlement=staked)
+  };
 }
 
 export interface SlashingPolicy {
@@ -162,7 +180,14 @@ export interface DiagnosticEntry {
   context?: Record<string, unknown>;
 }
 
-export type LedgerEntryType = 'FAUCET' | 'STAKE' | 'UNSTAKE' | 'PAYOUT' | 'SLASH' | 'ADJUST' | 'ESCROW_MINT';
+export type LedgerEntryType =
+  | 'FAUCET'
+  | 'STAKE'
+  | 'UNSTAKE'
+  | 'PAYOUT'
+  | 'SLASH'
+  | 'ADJUST'
+  | 'ESCROW_MINT';
 
 export interface LedgerEntry {
   id: string;
