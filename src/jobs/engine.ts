@@ -297,17 +297,35 @@ export class JobEngine {
   async vote(agentId: string, jobId: string, input: VoteInput): Promise<Vote> {
     const now = nowIso();
     return (await this.storage.update((state) => {
+      // optional: stake on votes (APPROVAL_VOTE staked settlement)
+      const stakeAmount = input.stakeAmount ? Math.max(0, Number(input.stakeAmount)) : 0;
       const job = state.jobs.find((j) => j.id === jobId);
       if (!job) throw new Error(`Job not found: ${jobId}`);
       if (
         job.mode === 'SUBMISSION' &&
-        (job.consensusPolicy.type === 'SINGLE_WINNER' ||
+        (job.consensusPolicy.type === 'FIRST_SUBMISSION_WINS' ||
           job.consensusPolicy.type === 'HIGHEST_CONFIDENCE_SINGLE' ||
           job.consensusPolicy.type === 'OWNER_PICK' ||
           job.consensusPolicy.type === 'TOP_K_SPLIT' ||
           job.consensusPolicy.type === 'TRUSTED_ARBITER')
       ) {
         throw new Error('Voting not enabled for this job');
+      }
+
+      // optional vote stake (only meaningful for APPROVAL_VOTE settlement=staked)
+      if (stakeAmount > 0) {
+        const currentBalance = getBalance(state.ledger, agentId);
+        const nextBalance = currentBalance - Math.abs(stakeAmount);
+        ensureNonNegative(nextBalance, `${agentId} vote stake for ${jobId}`);
+        state.ledger.push({
+          id: newId('ledger'),
+          at: now,
+          type: 'STAKE',
+          agentId,
+          amount: -Math.abs(stakeAmount),
+          jobId,
+          reason: 'vote'
+        });
       }
       const targetType = input.targetType ?? (input.submissionId ? 'SUBMISSION' : input.choiceKey ? 'CHOICE' : undefined);
       const targetId = input.targetId ?? input.submissionId;
@@ -330,7 +348,7 @@ export class JobEngine {
         agentId,
         score,
         weight: input.weight ?? score,
-        stakeAmount: input.stakeAmount,
+        stakeAmount: stakeAmount || undefined,
         rationale: input.rationale,
         createdAt: now
       };
@@ -359,10 +377,28 @@ export class JobEngine {
         if (arbiter && arbiter !== agentId) {
           throw new Error('Only the trusted arbiter can resolve this job');
         }
+        if (!input.manualWinners || input.manualWinners.length === 0) {
+          throw new Error('Trusted arbiter must provide manual winners to resolve');
+        }
       }
 
-      if (job.consensusPolicy.type === 'OWNER_PICK' && job.createdByAgentId !== agentId) {
-        throw new Error('Only the job creator can resolve this job');
+      if (job.consensusPolicy.type === 'OWNER_PICK') {
+        if (job.createdByAgentId !== agentId) {
+          throw new Error('Only the job creator can resolve this job');
+        }
+        if (!input.manualWinners || input.manualWinners.length === 0) {
+          throw new Error('Owner must provide manual winners to resolve');
+        }
+      }
+
+      if (job.consensusPolicy.type === 'APPROVAL_VOTE' && job.consensusPolicy.approvalVote?.settlement === 'oracle') {
+        const arbiter = job.consensusPolicy.trustedArbiterAgentId;
+        if (arbiter && arbiter !== agentId) {
+          throw new Error('Only the trusted arbiter can resolve this job');
+        }
+        if (!input.manualWinners || input.manualWinners.length === 0) {
+          throw new Error('Oracle settlement requires manual winners to resolve');
+        }
       }
 
       const submissions = state.submissions.filter((s) => s.jobId === jobId);
@@ -395,6 +431,41 @@ export class JobEngine {
         const amountPerWinner = job.reward / consensus.winners.length;
         for (const winner of consensus.winners) {
           payouts.push({ agentId: winner, amount: amountPerWinner });
+        }
+      }
+
+      // Vote-stake settlement for APPROVAL_VOTE (best-effort, local-first)
+      if (job.consensusPolicy.type === 'APPROVAL_VOTE' && job.consensusPolicy.approvalVote?.settlement === 'staked') {
+        const winnerSubmissionId = consensus.winningSubmissionIds?.[0];
+        const voteSlashPercent = Math.max(0, Math.min(1, job.consensusPolicy.approvalVote?.voteSlashPercent ?? 0));
+        for (const v of votes) {
+          const st = v.stakeAmount ?? 0;
+          if (!st || st <= 0) continue;
+
+          // Return stake by default
+          state.ledger.push({
+            id: newId('ledger'),
+            at: now,
+            type: 'UNSTAKE',
+            agentId: v.agentId,
+            amount: st,
+            jobId,
+            reason: 'vote'
+          });
+
+          // Slash if vote is "wrong" relative to winner.
+          // Wrong = YES on non-winner OR NO on winner.
+          const votedSubmissionId = v.submissionId ?? (v.targetType === 'SUBMISSION' ? v.targetId : undefined);
+          const isYes = (v.score ?? 0) > 0;
+          const isNo = (v.score ?? 0) < 0;
+          const wrong =
+            (winnerSubmissionId && votedSubmissionId && votedSubmissionId !== winnerSubmissionId && isYes) ||
+            (winnerSubmissionId && votedSubmissionId && votedSubmissionId === winnerSubmissionId && isNo);
+
+          if (wrong && voteSlashPercent > 0) {
+            const slashAmount = Math.min(st, st * voteSlashPercent);
+            slashes.push({ agentId: v.agentId, amount: slashAmount, reason: 'vote_wrong' });
+          }
         }
       }
 

@@ -237,16 +237,23 @@ function registerConsensusSubcommands(
     .description('Cast a vote')
     .option('--submission <id>', 'Submission id to vote for')
     .option('--choice <key>', 'Choice key to vote for')
+    .option('--yes', 'Approval vote: yes (+1)')
+    .option('--no', 'Approval vote: no (-1)')
     .option('--weight <n>', 'Vote weight', parseFloat)
+    .option('--stake <n>', 'Stake amount locked for this vote (staked settlement)', parseFloat)
     .option('--json', 'JSON output')
     .action(async (jobId: string, opts: any) => {
+      const hasYesNo = Boolean(opts.yes || opts.no);
+      const score = hasYesNo ? (opts.no ? -1 : 1) : (opts.weight ?? 1);
+
       const vote = await backend.vote(agentId, jobId, {
         submissionId: opts.submission,
         choiceKey: opts.choice,
         targetType: opts.submission ? 'SUBMISSION' : opts.choice ? 'CHOICE' : undefined,
         targetId: opts.submission ?? opts.choice,
-        weight: opts.weight ?? 1,
-        score: opts.weight ?? 1
+        weight: opts.weight ?? (hasYesNo ? 1 : undefined),
+        score,
+        stakeAmount: opts.stake
       });
       output(vote, opts.json);
     });

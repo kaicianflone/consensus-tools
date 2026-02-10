@@ -386,7 +386,7 @@ Example (see full schema in `openclaw.plugin.json`):
               "maxParticipants": 3,
               "minParticipants": 1,
               "expiresSeconds": 86400,
-              "consensusPolicy": { "type": "SINGLE_WINNER", "trustedArbiterAgentId": "" },
+              "consensusPolicy": { "type": "FIRST_SUBMISSION_WINS", "trustedArbiterAgentId": "", "tieBreak": "earliest" },
               "slashingPolicy": { "enabled": false, "slashPercent": 0, "slashFlat": 0 }
             },
             "ledger": { "faucetEnabled": false, "initialCreditsPerAgent": 0, "balancesMode": "initial", "balances": {} }
