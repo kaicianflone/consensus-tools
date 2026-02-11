@@ -32,7 +32,7 @@ test('JsonStorage read/write', async () => {
       stakeRequired: 0,
       maxParticipants: 1,
       minParticipants: 1,
-      consensusPolicy: { type: 'SINGLE_WINNER' },
+      consensusPolicy: { type: 'FIRST_SUBMISSION_WINS' },
       slashingPolicy: { enabled: false, slashPercent: 0, slashFlat: 0 },
       escrowPolicy: { type: 'mint' },
       status: 'OPEN'

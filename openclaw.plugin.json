@@ -61,8 +61,8 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["SINGLE_WINNER", "MAJORITY_VOTE", "WEIGHTED_REPUTATION", "TRUSTED_ARBITER"],
-                    "default": "SINGLE_WINNER"
+                    "enum": ["FIRST_SUBMISSION_WINS", "APPROVAL_VOTE", "MAJORITY_VOTE", "WEIGHTED_REPUTATION", "TRUSTED_ARBITER"],
+                    "default": "FIRST_SUBMISSION_WINS"
                   },
                   "trustedArbiterAgentId": { "type": "string", "default": "" }
                 },

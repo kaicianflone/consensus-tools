@@ -18,6 +18,7 @@
     "bin",
     "index.ts",
     "src",
+    "assets",
     "openclaw.plugin.json",
     "README.md"
   ],

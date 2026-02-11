@@ -54,8 +54,9 @@ export type RunnerResult = {
 };
 
 const POLICY_TYPES: ConsensusPolicyType[] = [
-  'SINGLE_WINNER',
+  'FIRST_SUBMISSION_WINS',
   'HIGHEST_CONFIDENCE_SINGLE',
+  'APPROVAL_VOTE',
   'OWNER_PICK',
   'TOP_K_SPLIT',
   'MAJORITY_VOTE',
@@ -95,7 +96,13 @@ export async function runConsensusPolicyTests(options: RunnerOptions): Promise<R
         trustedArbiterAgentId: policy === 'TRUSTED_ARBITER' ? 'arbiter' : '',
         minConfidence: policy === 'HIGHEST_CONFIDENCE_SINGLE' ? 0.5 : undefined,
         topK: policy === 'TOP_K_SPLIT' ? 2 : undefined,
-        ordering: policy === 'TOP_K_SPLIT' ? 'confidence' : undefined
+        ordering: policy === 'TOP_K_SPLIT' ? 'confidence' : undefined,
+        // APPROVAL_VOTE defaults (pure approval): require at least 1 vote and accept any positive score
+        quorum: policy === 'APPROVAL_VOTE' ? 1 : undefined,
+        minScore: policy === 'APPROVAL_VOTE' ? 1 : undefined,
+        minMargin: policy === 'APPROVAL_VOTE' ? 0 : undefined,
+        tieBreak: policy === 'APPROVAL_VOTE' ? 'earliest' : undefined,
+        approvalVote: policy === 'APPROVAL_VOTE' ? { weightMode: 'equal', settlement: 'immediate' } : undefined
       },
       slashingPolicy: { enabled: false, slashPercent: 0, slashFlat: 0 }
     });
@@ -122,7 +129,7 @@ export async function runConsensusPolicyTests(options: RunnerOptions): Promise<R
     const correctSubmission = submissions.find((sub) => sub.artifacts?.answer === script.expectedAnswer) || submissions[0];
     log('[submission] selected correct', { submissionId: correctSubmission.id, agentId: correctSubmission.agentId });
 
-    if (policy === 'MAJORITY_VOTE' || policy === 'WEIGHTED_VOTE_SIMPLE' || policy === 'WEIGHTED_REPUTATION') {
+    if (policy === 'APPROVAL_VOTE' || policy === 'MAJORITY_VOTE' || policy === 'WEIGHTED_VOTE_SIMPLE' || policy === 'WEIGHTED_REPUTATION') {
       for (const persona of personas) {
         await engine.vote(persona.id, job.id, {
           submissionId: correctSubmission.id,
