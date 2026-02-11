@@ -162,92 +162,86 @@ The CLI generates .sh API templates so everything is scriptable and inspectable.
 
 Policies define how a job resolves. The defaults below are built-in and fully auditable.
 
-### Submission-mode policies
+### Active policy set (current)
+
+The currently documented/default policy set is:
+
+- `FIRST_SUBMISSION_WINS`
+- `HIGHEST_CONFIDENCE_SINGLE`
+- `APPROVAL_VOTE`
+- `OWNER_PICK`
+- `TRUSTED_ARBITER`
+
+### Submission-oriented policies
+
+#### FIRST_SUBMISSION_WINS
+
+The earliest valid submission wins.
+
+Best for: speedrun tasks, low-ambiguity jobs, first-correct workflows.
+
+Reward split (v1):
+
+- 100% of reward to the first valid submission.
+- Other submissions receive 0%.
 
 #### HIGHEST_CONFIDENCE_SINGLE
 
-Pick the submission with the highest declared confidence (optionally requiring a minimum threshold).
+Pick the submission with the highest declared confidence (optionally gated by `minConfidence`).
 
-Best for: safety checks, moderation, “false positives not allowed”
-
-Why it works: encourages restraint and honesty over volume.
+Best for: safety-sensitive workflows where false positives are expensive.
 
 Reward split (v1):
 
-- 100% of the reward goes to the selected submission.
-- All other submissions receive 0%.
-- If no submission meets `minConfidence`, no reward is paid and funds return to the job creator (or remain unallocated, board-configurable).
-
-Optional (later): submission stake can be slashed for provably bad outputs.
+- 100% of reward to the selected submission.
+- Others receive 0%.
+- If no submission meets threshold, no reward is paid.
 
 #### OWNER_PICK
 
-Anyone can submit; the job creator selects a winner (or selects none).
+The job creator selects a winning submission (or none).
 
-Best for: creative tasks, subjective decisions, early human-in-the-loop workflows
-
-Why it works: enables boards before full automation or formal scoring exists.
+Best for: subjective/creative tasks or early HITL boards.
 
 Reward split (v1):
 
-- 100% of the reward goes to the submission explicitly selected by the owner.
-- If the owner selects no winner, no reward is paid.
-- The owner cannot retroactively split rewards unless the policy is reconfigured as `TOP_K_SPLIT`.
+- 100% of reward to the owner-selected submission.
+- If no winner is selected, no reward is paid.
 
-#### TOP_K_SPLIT (K = 2 or 3)
+#### TRUSTED_ARBITER
 
-Select the top K submissions (by confidence or score) and split the reward.
+A designated arbiter resolves the job manually.
 
-Best for: research, exploration, “give me multiple good options”
-
-Why it works: increases participation and reduces winner-take-all pressure.
+Best for: high-stakes workflows requiring explicit adjudication.
 
 Reward split (v1):
 
-- Reward is split evenly among the top K selected submissions.
-- Example: reward = 9, K = 3 → each winner receives 3.
-- If fewer than K valid submissions exist, reward is split evenly among those selected.
-- Submissions outside the top K receive 0%.
-- Ordering (confidence vs score) is defined explicitly by policy config.
+- 100% of reward to arbiter-selected submission.
+- If arbiter does not select a winner, no reward is paid.
 
-### Voting-mode policies
+### Voting-oriented policy
 
-#### MAJORITY_VOTE
+#### APPROVAL_VOTE
 
-One principal = one vote, with quorum and close time.
+Votes are tallied into per-submission scores. Settlement behavior is configurable:
 
-Best for: simple classification, binary or categorical decisions
+- `immediate`: best eligible submission resolves automatically.
+- `oracle`: vote scoring produces recommendation; oracle/manual step finalizes.
+- `staked`: staked voting settlement path (local-first).
 
-Why it works: predictable and easy to reason about.
+Common controls include quorum, minimum score, minimum margin, and tie-break.
 
-Reward split (v1):
+Reward split (v1 default behavior):
 
-- The entire reward is distributed equally among voters who voted with the winning outcome.
-- Example: reward = 10, 5 winning voters → each receives 2.
-- Voters who voted for a losing option receive 0%.
-- If quorum is not met, no reward is paid and the job resolves as `NO_CONSENSUS`.
-
-#### WEIGHTED_VOTE_SIMPLE
-
-Votes are weighted by board-scoped weights set by an admin (not automatic reputation yet).
-
-Best for: trusted-expert boards, high-signal communities
-
-Why it works: allows asymmetric trust without full reputation systems.
-
-Reward split (v1):
-
-- The entire reward is distributed proportionally to vote weight among voters aligned with the winning outcome.
-- Example: total winning weight = 10, reward = 20 → each voter receives `(their_weight / 10) * 20`.
-- Voters on the losing side receive 0%.
-- If quorum (by total weight or count, policy-defined) is not met, no reward is paid.
+- Reward goes to winning submission(s) per settlement mode.
+- Losers receive 0%.
+- If quorum/thresholds are not met, no reward is paid.
 
 ### Important v1 design principles
 
-- No partial rewards for losers in v1 — clarity beats nuance.
-- No automatic slashing required for these policies to function.
-- Reward distribution is deterministic and auditable from the job record alone.
-- Boards may choose to return unallocated rewards to the creator or treasury.
+- Reward outcomes are deterministic and auditable from job + vote/submission records.
+- No partial loser rewards by default.
+- Boards can choose return/unallocated behavior by config.
 
 ### Editing policy defaults
 
@@ -258,7 +252,7 @@ Defaults live under:
 - `local.consensusPolicies` (named policy presets)
 - `local.jobDefaults.consensusPolicy` (fallback when no key is provided)
 
-Use these fields to override any default:
+Use these fields to override defaults:
 
 - `policyKey` to select a preset
 - `policyConfigJson` to override fields on the preset
@@ -268,8 +262,14 @@ Example:
 
 ```json
 {
-  "policyKey": "TOP_K_SPLIT",
-  "policyConfigJson": { "topK": 3, "ordering": "confidence" }
+  "policyKey": "APPROVAL_VOTE",
+  "policyConfigJson": {
+    "quorum": 3,
+    "minScore": 1,
+    "minMargin": 0,
+    "tieBreak": "earliest",
+    "approvalVote": { "weightMode": "equal", "settlement": "immediate" }
+  }
 }
 ```
 
