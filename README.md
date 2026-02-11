@@ -1,6 +1,6 @@
 # consensus.tools
 
-![consensus-tools](./assets/consensus-tools)
+![consensus-tools](https://cdn.jsdelivr.net/npm/@consensus-tools/consensus-tools@latest/assets/consensus-tools.png)
 
 **High-confidence decisions for agentic systems.**
 Local-first. Incentive-aligned. Verifiable.
