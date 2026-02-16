@@ -127,7 +127,7 @@ export class LedgerEngine {
       ensureNonNegative(nextBalance, `${entry.agentId} after ${entry.type}`);
       state.ledger.push(entry);
     });
-    this.logger?.info?.({ entry }, 'consensus-tools: ledger entry');
+    this.logger?.info?.(`consensus-tools: ledger entry (${entry.type} ${entry.amount} agent=${entry.agentId}${entry.jobId ? ` job=${entry.jobId}` : ''})`);
     if (this.config.local.ledger.balancesMode === 'override') {
       await this.applyConfigBalances(this.config.local.ledger.balances, 'override');
     }

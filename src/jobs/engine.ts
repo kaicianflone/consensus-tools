@@ -149,7 +149,7 @@ export class JobEngine {
       });
     });
 
-    this.logger?.info?.({ jobId: job.id }, 'consensus-tools: job posted');
+    this.logger?.info?.(`consensus-tools: job posted (${job.id})`);
     return job;
   }
 

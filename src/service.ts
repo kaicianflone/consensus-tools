@@ -16,7 +16,7 @@ export function createService(
     id: 'consensus-tools-service',
     start: async () => {
       if (config.mode === 'global') return;
-      logger?.debug?.({ agentId, capabilities }, 'consensus-tools: service started');
+      logger?.debug?.(`consensus-tools: service started (agentId=${agentId}, capabilities=${Array.isArray(capabilities) ? capabilities.join(',') : ''})`);
     },
     stop: async () => {
       if (config.mode === 'global') return;
