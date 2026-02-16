@@ -22,7 +22,7 @@ export class ConsensusToolsServer {
       this.server?.listen(port, host, () => resolve());
     });
 
-    this.logger?.info?.({ host, port }, 'consensus-tools embedded server started');
+    this.logger?.info?.(`consensus-tools embedded server started (host=${host}, port=${port})`);
   }
 
   async stop(): Promise<void> {
@@ -113,7 +113,7 @@ export class ConsensusToolsServer {
 
       return this.reply(res, 404, { error: 'Not found' });
     } catch (err: any) {
-      this.logger?.warn?.({ err }, 'consensus-tools server error');
+      this.logger?.warn?.(`consensus-tools server error: ${err instanceof Error ? err.message : String(err)}`);
       try {
         await this.engine.recordError?.(err?.message || 'Server error', { path: req.url, method: req.method });
       } catch {

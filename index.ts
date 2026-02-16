@@ -9,28 +9,35 @@ import { registerTools } from './src/tools';
 import { createService } from './src/service';
 import type { ConsensusToolsConfig, Job } from './src/types';
 
-export default async function register(api: any) {
+export default function register(api: any) {
   const logger = api?.logger?.child ? api.logger.child({ plugin: PLUGIN_ID }) : api?.logger;
   const loaded = loadConfig(api, logger);
   const { config } = validateConfig(loaded, logger);
   const agentId = resolveAgentId(api, config);
 
   const storage = createStorage(config);
-  await storage.init();
-
   const ledger = new LedgerEngine(storage, config, logger);
   const engine = new JobEngine(storage, ledger, config, logger);
   const server = new ConsensusToolsServer(config, engine, ledger, logger);
   const client = new ConsensusToolsClient(config.global.baseUrl, config.global.accessToken, logger);
 
-  if (config.mode === 'local') {
-    await ledger.applyConfigBalances(
-      config.local.ledger.balances,
-      config.local.ledger.balancesMode ?? 'initial'
-    );
-  }
+  let readyPromise: Promise<void> | null = null;
+  const ensureReady = async () => {
+    if (!readyPromise) {
+      readyPromise = (async () => {
+        await storage.init();
+        if (config.mode === 'local') {
+          await ledger.applyConfigBalances(
+            config.local.ledger.balances,
+            config.local.ledger.balancesMode ?? 'initial'
+          );
+        }
+      })();
+    }
+    return readyPromise;
+  };
 
-  const backend = createBackend(config, engine, ledger, client, server, storage, logger, agentId);
+  const backend = createBackend(config, ensureReady, engine, ledger, client, server, storage, logger, agentId);
 
   api.registerCli(
     ({ program }: any) => {
@@ -49,11 +56,19 @@ export default async function register(api: any) {
     getJob: backend.getJob
   };
   const service = createService(config, serviceBackend, agentId, capabilities, logger);
-  api.registerService({ id: 'consensus-tools', start: service.start, stop: service.stop });
+  api.registerService({
+    id: 'consensus-tools',
+    start: async () => {
+      await ensureReady();
+      await service.start();
+    },
+    stop: service.stop
+  });
 }
 
 function createBackend(
   config: ConsensusToolsConfig,
+  ensureReady: () => Promise<void>,
   engine: JobEngine,
   ledger: LedgerEngine,
   client: ConsensusToolsClient,
@@ -90,6 +105,7 @@ function createBackend(
 
   const backend = {
     postJob: async (actorId: string, input: any): Promise<Job> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('post jobs');
         ensureNetworkSideEffects('post jobs');
@@ -103,6 +119,7 @@ function createBackend(
       }
     },
     listJobs: async (filters?: Record<string, string | undefined>): Promise<Job[]> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('list jobs');
         return client.listJobs(filters || {});
@@ -110,6 +127,7 @@ function createBackend(
       return engine.listJobs(filters || {});
     },
     getJob: async (jobId: string): Promise<Job | undefined> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('get jobs');
         return client.getJob(jobId);
@@ -117,6 +135,7 @@ function createBackend(
       return engine.getJob(jobId);
     },
     getStatus: async (jobId: string): Promise<any> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('get job status');
         return client.getStatus(jobId);
@@ -124,6 +143,7 @@ function createBackend(
       return engine.getStatus(jobId);
     },
     claimJob: async (actorId: string, jobId: string, stakeAmount: number, leaseSeconds: number): Promise<any> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('claim jobs');
         ensureNetworkSideEffects('claim jobs');
@@ -137,12 +157,14 @@ function createBackend(
       }
     },
     heartbeat: async (actorId: string, jobId: string): Promise<void> => {
+      await ensureReady();
       if (config.mode === 'global') {
         return;
       }
       return engine.heartbeat(actorId, jobId);
     },
     submitJob: async (actorId: string, jobId: string, input: any): Promise<any> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('submit jobs');
         ensureNetworkSideEffects('submit jobs');
@@ -156,6 +178,7 @@ function createBackend(
       }
     },
     listSubmissions: async (jobId: string): Promise<any[]> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('list submissions');
         const status = await client.getStatus(jobId);
@@ -165,6 +188,7 @@ function createBackend(
       return status.submissions;
     },
     listVotes: async (jobId: string): Promise<any[]> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('list votes');
         const status = await client.getStatus(jobId);
@@ -174,6 +198,7 @@ function createBackend(
       return status.votes;
     },
     vote: async (actorId: string, jobId: string, input: any): Promise<any> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('vote');
         ensureNetworkSideEffects('vote');
@@ -187,6 +212,7 @@ function createBackend(
       }
     },
     resolveJob: async (actorId: string, jobId: string, input: any): Promise<any> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('resolve jobs');
         ensureNetworkSideEffects('resolve jobs');
@@ -200,6 +226,7 @@ function createBackend(
       }
     },
     getLedgerBalance: async (target: string): Promise<number> => {
+      await ensureReady();
       if (config.mode === 'global') {
         ensureGlobalAccess('read ledger');
         const result = await client.getLedger(target);
@@ -208,6 +235,7 @@ function createBackend(
       return ledger.getBalance(target);
     },
     faucet: async (target: string, amount: number): Promise<any> => {
+      await ensureReady();
       if (!config.local.ledger.faucetEnabled) {
         throw new Error('Faucet disabled');
       }
@@ -219,6 +247,7 @@ function createBackend(
       return ledger.faucet(target, amount, `faucet:${agentId}`);
     },
     getDiagnostics: async () => {
+      await ensureReady();
       const errors = (await storage.getState()).errors.map((err: any) => ({ at: err.at, message: err.message }));
       let networkOk: boolean | undefined = undefined;
       if (config.mode === 'global') {
@@ -229,13 +258,16 @@ function createBackend(
           await client.listJobs({});
           networkOk = true;
         } catch (err) {
-          logger?.warn?.({ err }, 'consensus-tools: diagnostics network check failed');
+          logger?.warn?.(`consensus-tools: diagnostics network check failed: ${err instanceof Error ? err.message : String(err)}`);
           networkOk = false;
         }
       }
       return { errors, networkOk };
     },
-    startServer: async () => server.start(),
+    startServer: async () => {
+      await ensureReady();
+      return server.start();
+    },
     stopServer: async () => server.stop()
   };
 

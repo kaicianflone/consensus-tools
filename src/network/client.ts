@@ -59,7 +59,7 @@ export class ConsensusToolsClient {
 
     if (!res.ok) {
       const text = await res.text();
-      this.logger?.warn?.({ status: res.status, path }, 'consensus-tools: network request failed');
+      this.logger?.warn?.(`consensus-tools: network request failed (status=${res.status}, path=${path})`);
       throw new Error(`Network error ${res.status}: ${text || res.statusText}`);
     }
 

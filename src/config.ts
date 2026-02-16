@@ -51,6 +51,7 @@ export const configSchema = {
                   type: 'string',
                   enum: [
                     'FIRST_SUBMISSION_WINS',
+                    'SINGLE_WINNER',
                     'HIGHEST_CONFIDENCE_SINGLE',
                     'APPROVAL_VOTE',
                     'OWNER_PICK',
@@ -66,7 +67,20 @@ export const configSchema = {
                 minConfidence: { type: 'number', default: 0, minimum: 0, maximum: 1 },
                 topK: { type: 'integer', default: 2, minimum: 1 },
                 ordering: { type: 'string', enum: ['confidence', 'score'], default: 'confidence' },
-                quorum: { type: 'integer', minimum: 1 }
+                quorum: { type: 'integer', minimum: 1 },
+                minScore: { type: 'number' },
+                minMargin: { type: 'number' },
+                tieBreak: { type: 'string', enum: ['earliest', 'confidence', 'arbiter'] },
+                approvalVote: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    weightMode: { type: 'string', enum: ['equal', 'explicit', 'reputation'] },
+                    settlement: { type: 'string', enum: ['immediate', 'staked', 'oracle'] },
+                    oracle: { type: 'string', enum: ['trusted_arbiter'] },
+                    voteSlashPercent: { type: 'number', minimum: 0, maximum: 1 }
+                  }
+                }
               },
               required: ['type', 'trustedArbiterAgentId']
             },
@@ -101,6 +115,7 @@ export const configSchema = {
                 type: 'string',
                 enum: [
                   'FIRST_SUBMISSION_WINS',
+                  'SINGLE_WINNER',
                   'HIGHEST_CONFIDENCE_SINGLE',
                   'APPROVAL_VOTE',
                   'OWNER_PICK',
@@ -115,7 +130,20 @@ export const configSchema = {
               minConfidence: { type: 'number', minimum: 0, maximum: 1 },
               topK: { type: 'integer', minimum: 1 },
               ordering: { type: 'string', enum: ['confidence', 'score'] },
-              quorum: { type: 'integer', minimum: 1 }
+              quorum: { type: 'integer', minimum: 1 },
+              minScore: { type: 'number' },
+              minMargin: { type: 'number' },
+              tieBreak: { type: 'string', enum: ['earliest', 'confidence', 'arbiter'] },
+              approvalVote: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  weightMode: { type: 'string', enum: ['equal', 'explicit', 'reputation'] },
+                  settlement: { type: 'string', enum: ['immediate', 'staked', 'oracle'] },
+                  oracle: { type: 'string', enum: ['trusted_arbiter'] },
+                  voteSlashPercent: { type: 'number', minimum: 0, maximum: 1 }
+                }
+              }
             },
             required: ['type']
           },
@@ -234,14 +262,14 @@ export function loadConfig(api: any, logger?: any): ConsensusToolsConfig {
   try {
     raw = api?.config?.getPluginConfig?.(PLUGIN_ID);
   } catch (err) {
-    logger?.warn?.({ err }, 'consensus-tools: failed to read config via getPluginConfig');
+    logger?.warn?.(`consensus-tools: failed to read config via getPluginConfig: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   if (!raw) {
     try {
       raw = api?.config?.get?.(`plugins.entries.${PLUGIN_ID}.config`);
     } catch (err) {
-      logger?.warn?.({ err }, 'consensus-tools: failed to read config via config.get');
+      logger?.warn?.(`consensus-tools: failed to read config via config.get: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -253,7 +281,30 @@ export function loadConfig(api: any, logger?: any): ConsensusToolsConfig {
     raw = api?.config?.entries?.[PLUGIN_ID]?.config;
   }
 
-  return mergeDefaults(fallback, raw ?? {});
+  return normalizeLegacyPolicyAliases(mergeDefaults(fallback, raw ?? {}));
+}
+
+function normalizeLegacyPolicyAliases(config: ConsensusToolsConfig): ConsensusToolsConfig {
+  const normalized = deepCopy(config);
+
+  const normalizePolicyType = (value?: string) => {
+    if (value === 'SINGLE_WINNER') return 'FIRST_SUBMISSION_WINS';
+    return value;
+  };
+
+  const defaultsPolicy = normalized?.local?.jobDefaults?.consensusPolicy;
+  if (defaultsPolicy?.type) {
+    defaultsPolicy.type = normalizePolicyType(defaultsPolicy.type) as any;
+  }
+
+  const policyMap = normalized?.local?.consensusPolicies ?? {};
+  for (const policy of Object.values(policyMap)) {
+    if (policy?.type) {
+      policy.type = normalizePolicyType(policy.type) as any;
+    }
+  }
+
+  return normalized;
 }
 
 export function validateConfig(input: ConsensusToolsConfig, logger?: any): { config: ConsensusToolsConfig; errors: string[] } {
@@ -264,7 +315,7 @@ export function validateConfig(input: ConsensusToolsConfig, logger?: any): { con
     : (validate.errors || []).map((err) => `${err.instancePath || '/'} ${err.message || 'invalid'}`);
 
   if (!ok) {
-    logger?.warn?.({ errors }, 'consensus-tools: config validation warnings');
+    logger?.warn?.(`consensus-tools: config validation warnings: ${JSON.stringify(errors)}`);
   }
 
   return { config: candidate, errors };
