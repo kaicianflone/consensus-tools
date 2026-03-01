@@ -2,7 +2,6 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { ConsensusToolsConfig, Job } from './types';
 import { renderTable } from './util/table';
-import { runConsensusPolicyTests } from './testing/consensusTestRunner';
 import { runInitWizard } from './initWizard';
 import {
   defaultConsensusCliConfig,
@@ -302,6 +301,7 @@ function registerConsensusSubcommands(
     .action(async (opts: any) => {
       const apiKey = opts.openaiKey || process.env.OPENAI_API_KEY;
       const agentCount = Number(opts.agents || 3);
+      const { runConsensusPolicyTests } = await import('./testing/consensusTestRunner');
       const result = await runConsensusPolicyTests({
         scriptPath: opts.script,
         agentCount,

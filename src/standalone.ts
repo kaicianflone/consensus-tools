@@ -15,7 +15,6 @@ import {
 import type { ConsensusCliConfig } from './cliConfig';
 import { ConsensusToolsClient } from './network/client';
 import { renderTable } from './util/table';
-import { runConsensusPolicyTests } from './testing/consensusTestRunner';
 
 type Parsed = { positionals: string[]; options: Record<string, any> };
 
@@ -389,6 +388,7 @@ async function main() {
     const scriptPath = String(parsed.options.script || '.consensus/generation.ts');
     const apiKey = (parsed.options['openai-key'] as string | undefined) || process.env.OPENAI_API_KEY;
     const model = String(parsed.options.model || 'gpt-5.2');
+    const { runConsensusPolicyTests } = await import('./testing/consensusTestRunner');
     const result = await runConsensusPolicyTests({
       scriptPath,
       agentCount,
