@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,7 +37,8 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
       - run: npm ci
-      - run: npm publish
+      - name: Publish npm package
+        run: npm publish --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -44,12 +46,25 @@ jobs:
     needs: publish
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
       - name: Install and smoke latest package
         run: |
           mkdir verify && cd verify
           npm init -y >/dev/null 2>&1
           npm i @consensus-tools/consensus-tools@latest
           npx consensus-tools --version
+
+      - name: Build release manifest + hashes
+        run: |
+          mkdir -p artifacts/release
+          node -e "const fs=require('fs');const cp=require('child_process');const pkg=require('./package.json');const lock=fs.readFileSync('package-lock.json');const crypto=require('crypto');const lockHash=crypto.createHash('sha256').update(lock).digest('hex');const sha=cp.execSync('git rev-parse HEAD').toString().trim();const manifest={package:pkg.name,version:pkg.version,gitSha:sha,lockfileSha256:lockHash,workflowRunId:process.env.GITHUB_RUN_ID,ref:process.env.GITHUB_REF,createdAt:new Date().toISOString()};fs.writeFileSync('artifacts/release/release-manifest.json',JSON.stringify(manifest,null,2));"
+          sha256sum package-lock.json > artifacts/release/package-lock.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-verification-artifacts
+          path: artifacts/release
